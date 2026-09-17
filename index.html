@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MWF Circuit</title>
+<meta name="theme-color" content="#22262B">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --chalk:#EEF0EC; --paper:#FFFFFF; --ink:#22262B; --muted:#5E6670; --line:#D5D9D3;
+    --work:#2B59C3; --rest:#2F8F6B; --warm:#E3A534; --cool:#5C6F8A; --setup:#3A3F46; --done:#22262B;
+    --display:"Barlow Condensed","Arial Narrow","Roboto Condensed",system-ui,sans-serif;
+    --body:"Barlow","Segoe UI",system-ui,-apple-system,sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --chalk:#1A1D21; --paper:#23272C; --ink:#E9EBE7; --muted:#9BA4AE; --line:#363B42; }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--chalk);color:var(--ink);font-family:var(--body);font-size:1rem;line-height:1.5;-webkit-font-smoothing:antialiased}
+  button{font:inherit;color:inherit;cursor:pointer}
+  :focus-visible{outline:3px solid var(--work);outline-offset:2px}
+
+  /* Header */
+  .top{display:flex;flex-wrap:wrap;align-items:center;gap:.75rem 1.5rem;padding:1rem clamp(1rem,3vw,2rem);border-bottom:1px solid var(--line)}
+  .brand{font-family:var(--display);font-weight:800;font-size:1.6rem;letter-spacing:.01em;margin:0;line-height:1}
+  .days{display:flex;gap:.4rem}
+  .day{background:transparent;border:2px solid var(--line);border-radius:999px;padding:.35rem 1rem;font-weight:600}
+  .day[aria-selected="true"]{background:var(--ink);border-color:var(--ink);color:var(--chalk)}
+  .day small{font-weight:500;opacity:.7;margin-left:.3rem}
+  .views{margin-left:auto;display:flex;border:2px solid var(--line);border-radius:10px;overflow:hidden}
+  .views button{background:transparent;border:0;padding:.4rem .9rem;font-weight:600}
+  .views button[aria-pressed="true"]{background:var(--paper);box-shadow:inset 0 -3px 0 var(--work)}
+
+  main{padding:clamp(1rem,3vw,2rem);max-width:1400px;margin:0 auto}
+
+  /* Timer view layout */
+  .timer-view{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:1.5rem;align-items:start}
+  @media (max-width:980px){.timer-view{grid-template-columns:1fr}}
+
+  /* Stage: the whole panel floods with the phase color */
+  .stage{--phase:var(--setup);--on:#fff;background:var(--phase);color:var(--on);border-radius:18px;padding:clamp(1rem,3vw,2rem);transition:background-color .35s ease;display:flex;flex-direction:column;gap:1.25rem;min-height:min(78vh,720px)}
+  .stage[data-phase="work"]{--phase:var(--work)}
+  .stage[data-phase="rest"]{--phase:var(--rest)}
+  .stage[data-phase="warmup"]{--phase:var(--warm);--on:#22262B}
+  .stage[data-phase="cooldown"]{--phase:var(--cool)}
+  .stage[data-phase="done"]{--phase:var(--done)}
+  .stage:fullscreen{border-radius:0;min-height:100vh}
+  @media (prefers-reduced-motion: reduce){.stage{transition:none}}
+
+  .stage-meta{display:flex;justify-content:space-between;gap:1rem;font-weight:600;font-size:1.05rem;opacity:.9}
+  .stage-grid{flex:1;display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:1.5rem;align-items:center}
+  @media (max-width:720px){.stage-grid{grid-template-columns:1fr;text-align:center}}
+  .phase{display:inline-block;font-family:var(--display);font-weight:700;font-size:1.5rem;padding:.1rem .8rem;border:2px solid currentColor;border-radius:999px;margin:0 0 .6rem}
+  .ex-name{font-family:var(--display);font-weight:800;font-size:clamp(2.6rem,6.5vw,5.5rem);line-height:.95;margin:0 0 .8rem;text-wrap:balance}
+  .ex-cue{font-size:clamp(1.05rem,1.8vw,1.3rem);max-width:36ch;margin:0;opacity:.92}
+  @media (max-width:720px){.ex-cue{margin:0 auto}}
+
+  .clock{position:relative;width:min(100%,380px);aspect-ratio:1;justify-self:center}
+  .clock svg{width:100%;height:100%;transform:rotate(-90deg)}
+  .clock .track{stroke:currentColor;opacity:.22}
+  .clock .fill{stroke:currentColor;stroke-linecap:round}
+  .time{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--display);font-weight:700;font-size:clamp(4.5rem,11vw,8.5rem);font-variant-numeric:tabular-nums;line-height:1}
+
+  .next{display:flex;align-items:baseline;gap:.75rem;flex-wrap:wrap;background:rgba(0,0,0,.14);border-radius:12px;padding:.75rem 1rem}
+  .stage[data-phase="warmup"] .next{background:rgba(255,255,255,.3)}
+  .next span{opacity:.85}
+  .next strong{font-family:var(--display);font-size:1.7rem;font-weight:700;line-height:1.1}
+
+  .progress{height:8px;border-radius:99px;background:rgba(255,255,255,.25);overflow:hidden}
+  .stage[data-phase="warmup"] .progress{background:rgba(0,0,0,.15)}
+  .progress div{height:100%;width:0;background:currentColor}
+  .session-time{display:flex;justify-content:space-between;font-size:.95rem;opacity:.85;margin-top:-.6rem;font-variant-numeric:tabular-nums}
+
+  .controls{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center}
+  .btn{background:transparent;border:2px solid currentColor;border-radius:12px;padding:.6rem 1.1rem;font-weight:600;min-height:48px}
+  .btn.primary{background:var(--on);color:var(--phase);border-color:var(--on);font-size:1.2rem;padding:.6rem 2rem;min-width:9rem}
+  .controls .spacer{flex:1}
+  .btn.toggle[aria-pressed="false"]{opacity:.6;border-style:dashed}
+
+  /* Session sidebar */
+  .session{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:1.25rem}
+  .session h2{font-family:var(--display);font-size:2rem;margin:0;line-height:1}
+  .session .focus{color:var(--muted);margin:.3rem 0 1rem}
+  .block{border-top:1px solid var(--line);padding:.8rem 0}
+  .block-head{display:block;width:100%;text-align:left;background:none;border:0;padding:0}
+  .block-head b{font-family:var(--display);font-size:1.3rem;font-weight:700;display:block;line-height:1.15}
+  .block-head span{color:var(--muted);font-size:.9rem}
+  .block-head:hover b{text-decoration:underline}
+  .block ul{list-style:none;margin:.5rem 0 0;padding:0}
+  .block li{padding:.25rem .6rem;border-left:3px solid transparent;border-radius:0 6px 6px 0}
+  .block li.current{border-left-color:var(--work);background:color-mix(in srgb,var(--work) 12%,transparent);font-weight:600}
+  .block.active .block-head b{color:var(--work)}
+  .hint{color:var(--muted);font-size:.88rem;margin:.8rem 0 0}
+
+  /* Plan view */
+  .plan{max-width:1100px}
+  .plan-intro{max-width:70ch}
+  .plan h2{font-family:var(--display);font-size:clamp(2rem,4vw,3rem);margin:0 0 .5rem;line-height:1}
+  .notes{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem 2rem;margin:1.5rem 0 2.5rem}
+  .notes h3{font-family:var(--display);font-size:1.35rem;margin:0 0 .25rem}
+  .notes p{margin:0;color:var(--muted)}
+  .day-plan{border-top:4px solid var(--ink);padding:1.25rem 0 2rem}
+  .day-plan header{display:flex;flex-wrap:wrap;align-items:baseline;gap:.5rem 1rem;margin-bottom:1rem}
+  .day-plan h3{font-family:var(--display);font-size:2.2rem;margin:0;line-height:1}
+  .day-plan header p{margin:0;color:var(--muted)}
+  .day-plan header .btn{margin-left:auto;border-color:var(--ink);min-height:40px;padding:.35rem 1rem}
+  .plan-blocks{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.25rem 2rem}
+  .plan-block h4{font-family:var(--display);font-size:1.35rem;margin:0}
+  .plan-block .meta{color:var(--muted);font-size:.92rem;margin:0 0 .5rem}
+  .plan-block ol{margin:0;padding-left:1.3rem}
+  .plan-block li{margin:.3rem 0}
+  .plan-block li small{display:block;color:var(--muted);font-size:.88rem;line-height:1.35}
+  [hidden]{display:none !important}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <p class="brand">MWF Circuit</p>
+  <div class="days" role="tablist" aria-label="Workout day" id="dayTabs"></div>
+  <div class="views" aria-label="View">
+    <button id="viewTimer" aria-pressed="true">Timer</button>
+    <button id="viewPlan" aria-pressed="false">Full plan</button>
+  </div>
+</header>
+
+<main>
+  <section class="timer-view" id="timerView">
+    <div class="stage" id="stage" data-phase="ready" aria-live="polite">
+      <div class="stage-meta"><span id="blockName"></span><span id="roundInfo"></span></div>
+
+      <div class="stage-grid">
+        <div>
+          <p class="phase" id="phaseLabel">Get ready</p>
+          <h1 class="ex-name" id="exName"></h1>
+          <p class="ex-cue" id="exCue"></p>
+        </div>
+        <div class="clock">
+          <svg viewBox="0 0 200 200" aria-hidden="true">
+            <circle class="track" cx="100" cy="100" r="90" fill="none" stroke-width="10"/>
+            <circle class="fill" id="ring" cx="100" cy="100" r="90" fill="none" stroke-width="10"/>
+          </svg>
+          <div class="time" id="time" role="timer">0:10</div>
+        </div>
+      </div>
+
+      <div class="next"><span>Up next</span><strong id="nextName"></strong></div>
+
+      <div class="progress" aria-hidden="true"><div id="bar"></div></div>
+      <div class="session-time"><span id="elapsed">0:00 done</span><span id="left">0:00 left</span></div>
+
+      <div class="controls">
+        <button class="btn" id="btnBack" aria-label="Previous interval">Back</button>
+        <button class="btn primary" id="btnPlay">Start</button>
+        <button class="btn" id="btnSkip" aria-label="Next interval">Skip</button>
+        <span class="spacer"></span>
+        <button class="btn toggle" id="btnSound" aria-pressed="true">Beeps</button>
+        <button class="btn toggle" id="btnVoice" aria-pressed="false">Voice</button>
+        <button class="btn" id="btnFull">Full screen</button>
+        <button class="btn" id="btnReset">Restart</button>
+      </div>
+    </div>
+
+    <aside class="session" id="session"></aside>
+  </section>
+
+  <section class="plan" id="planView" hidden></section>
+</main>
+
+<script>
+/* =========================================================
+   PROGRAM DATA
+   Each block: rounds, work/rest seconds, optional roundRest.
+   An exercise can override work/rest for itself.
+   ========================================================= */
+const WARMUP_WORK = 45, COOLDOWN_WORK = 45;
+
+const WORKOUTS = {
+  mon: {
+    day: "Monday", short: "Mon",
+    title: "Heavy Foundation",
+    focus: "Big compound lifts for strength, then a conditioning circuit and a Tabata finisher.",
+    blocks: [
+      { name: "Warm-up", kind: "warmup", rounds: 1, work: WARMUP_WORK, rest: 0,
+        equipment: "Open floor space, light dumbbells",
+        exercises: [
+          { name: "Jumping jacks", cue: "Easy pace, get the heart rate up." },
+          { name: "Bodyweight squats", cue: "Sit back, chest tall, full depth." },
+          { name: "Inchworm to push-up", cue: "Walk hands out, one push-up, walk back." },
+          { name: "World's greatest stretch", cue: "Lunge, elbow to instep, rotate. Alternate sides." },
+          { name: "Glute bridges", cue: "Squeeze at the top for one second." },
+          { name: "Arm circles + band pull-aparts", cue: "Open up shoulders before pressing." },
+          { name: "High knees", cue: "Quick feet, drive the knees." },
+          { name: "Light squat to press", cue: "Light dumbbells. Rehearse the thruster pattern." }
+        ]},
+      { name: "Heavy Strength", kind: "main", rounds: 3, work: 50, rest: 25, roundRest: 60,
+        equipment: "Barbell + rack (or heavy dumbbells), bench, dumbbells",
+        exercises: [
+          { name: "Barbell back squat", cue: "Heavy: a weight you could do ~10 times. Controlled reps, stop 1–2 short of failure." },
+          { name: "Dumbbell bench press", cue: "Lower for 2 seconds, press hard. Feet planted." },
+          { name: "Bent-over barbell row", cue: "Hinge to 45°, pull to the belly button, flat back." },
+          { name: "Romanian deadlift", cue: "Soft knees, push hips back, bar close to legs." }
+        ]},
+      { name: "Conditioning", kind: "main", rounds: 3, work: 40, rest: 20, roundRest: 40,
+        equipment: "Kettlebell, rower, floor space",
+        exercises: [
+          { name: "Kettlebell swings", cue: "Hips snap the bell to chest height. Arms stay loose." },
+          { name: "Burpees", cue: "Chest to floor, jump and clap overhead." },
+          { name: "Row for calories", cue: "Legs, then hips, then arms. Hard effort." },
+          { name: "Mountain climbers", cue: "Hips low, fast alternating knees." }
+        ]},
+      { name: "Tabata Finisher", kind: "main", rounds: 8, work: 20, rest: 0, roundRest: 10,
+        format: "Tabata: 8 rounds of 20s work / 10s rest",
+        equipment: "Pair of moderate dumbbells",
+        exercises: [
+          { name: "Dumbbell thrusters", cue: "Squat to press in one motion. As many clean reps as you can." }
+        ]},
+      { name: "Cool-down", kind: "cooldown", rounds: 1, work: COOLDOWN_WORK, rest: 0, setup: 30,
+        equipment: "Mat",
+        exercises: [
+          { name: "Child's pose", cue: "Breathe slowly into your back." },
+          { name: "Pigeon stretch, left", cue: "Sink the hips down." },
+          { name: "Pigeon stretch, right", cue: "Sink the hips down." },
+          { name: "Seated hamstring stretch", cue: "Long spine, reach for the toes." },
+          { name: "Doorway chest stretch", cue: "Elbow at shoulder height, lean through." },
+          { name: "Box breathing", cue: "Lie down. In 4, hold 4, out 4, hold 4." }
+        ]}
+    ]
+  },
+
+  wed: {
+    day: "Wednesday", short: "Wed",
+    title: "Engine",
+    focus: "F45-style station circuit, a heavy EMOM, and a core finisher. Moderate loads, high output.",
+    blocks: [
+      { name: "Warm-up", kind: "warmup", rounds: 1, work: WARMUP_WORK, rest: 0,
+        equipment: "Rower or bike, light kettlebell",
+        exercises: [
+          { name: "Easy row or bike", cue: "Conversational pace." },
+          { name: "Leg swings", cue: "Front-to-back, then side-to-side. Switch legs halfway." },
+          { name: "Push-up to downward dog", cue: "One push-up, press hips up and back." },
+          { name: "Lateral lunges", cue: "Alternate sides, sit into the hip." },
+          { name: "A-skips", cue: "Light and bouncy." },
+          { name: "Light kettlebell deadlifts", cue: "Groove the hinge before heavy pulls." },
+          { name: "Hip openers", cue: "Walking knee hugs and quad pulls." },
+          { name: "Easy squat jumps", cue: "Land soft, 70% effort." }
+        ]},
+      { name: "Station Circuit", kind: "main", rounds: 2, work: 40, rest: 20, roundRest: 60,
+        equipment: "Dumbbells, box or bench, assault bike, kettlebell",
+        exercises: [
+          { name: "Dumbbell thrusters", cue: "Moderate weight. Smooth, unbroken reps." },
+          { name: "Weighted box step-ups", cue: "Drive through the top foot. Alternate legs." },
+          { name: "Renegade rows", cue: "Plank on dumbbells, row one side at a time, hips square." },
+          { name: "Assault bike sprint", cue: "All-out. Push and pull the handles." },
+          { name: "Dumbbell walking lunges", cue: "Back knee kisses the floor." },
+          { name: "Push-ups", cue: "Drop to knees when form breaks, keep moving." },
+          { name: "Kettlebell clean & press", cue: "Switch arms at the halfway beep." },
+          { name: "Skater jumps", cue: "Leap side to side, stick each landing." }
+        ]},
+      { name: "Heavy EMOM", kind: "main", rounds: 5, work: 60, rest: 0,
+        format: "EMOM: 10 minutes, alternating moves every minute",
+        equipment: "Barbell or trap bar, wall ball (or dumbbells)",
+        exercises: [
+          { name: "Heavy deadlift x5", cue: "Do 5 heavy reps, rest for the rest of the minute." },
+          { name: "Wall balls x12", cue: "Do 12 reps (or 10 dumbbell push presses), then rest." }
+        ]},
+      { name: "Core Finisher", kind: "main", rounds: 2, work: 30, rest: 15, roundRest: 15,
+        equipment: "Mat, light plate or dumbbell",
+        exercises: [
+          { name: "Plank shoulder taps", cue: "Wide feet, don't let the hips rock." },
+          { name: "Dead bugs", cue: "Low back pressed into the floor." },
+          { name: "Weighted Russian twists", cue: "Rotate from the ribs, not the arms." },
+          { name: "Hollow hold", cue: "Tuck the knees if the back lifts." }
+        ]},
+      { name: "Cool-down", kind: "cooldown", rounds: 1, work: COOLDOWN_WORK, rest: 0, setup: 30,
+        equipment: "Mat",
+        exercises: [
+          { name: "Easy walk", cue: "Let the heart rate come down." },
+          { name: "Couch stretch, left", cue: "Knee against the wall, squeeze the glute." },
+          { name: "Couch stretch, right", cue: "Knee against the wall, squeeze the glute." },
+          { name: "Cobra stretch", cue: "Hips down, open the chest." },
+          { name: "Thread the needle", cue: "Alternate sides every few breaths." },
+          { name: "Box breathing", cue: "Lie down. In 4, hold 4, out 4, hold 4." }
+        ]}
+    ]
+  },
+
+  fri: {
+    day: "Friday", short: "Fri",
+    title: "Power Pairs",
+    focus: "Heavy supersets for pulling, legs, and pressing, then a loaded power circuit.",
+    blocks: [
+      { name: "Warm-up", kind: "warmup", rounds: 1, work: WARMUP_WORK, rest: 0,
+        equipment: "Bike, band, pull-up bar, light dumbbells",
+        exercises: [
+          { name: "Easy bike", cue: "Build the pace gradually." },
+          { name: "Cat-cow", cue: "Slow, move one vertebra at a time." },
+          { name: "Band pull-aparts", cue: "Squeeze the shoulder blades." },
+          { name: "Glute bridge march", cue: "Hips high, alternate knees." },
+          { name: "Spiderman lunge + rotation", cue: "Alternate sides, reach to the ceiling." },
+          { name: "Dead hang + scap pulls", cue: "Hang, then shrug the shoulders down." },
+          { name: "Light dumbbell RDLs", cue: "Prime the hamstrings for deadlifts." },
+          { name: "Easy broad jumps", cue: "Jump, land soft, walk back." }
+        ]},
+      { name: "Heavy Pairs: Pull", kind: "main", rounds: 4, work: 45, rest: 15, roundRest: 45,
+        equipment: "Barbell or trap bar, pull-up bar (or lat pulldown)",
+        exercises: [
+          { name: "Deadlift", cue: "Heavy: ~6–8 solid reps. Brace, push the floor away." },
+          { name: "Pull-ups", cue: "Use a band or lat pulldown as needed. Full hang to chin over." }
+        ]},
+      { name: "Heavy Pairs: Legs & Press", kind: "main", rounds: 4, work: 45, rest: 15, roundRest: 45,
+        equipment: "Heavy dumbbells, bench",
+        exercises: [
+          { name: "Bulgarian split squat", cue: "Switch legs at the halfway beep. Front shin vertical." },
+          { name: "Standing overhead press", cue: "Squeeze glutes, press to lockout, no leaning back." }
+        ]},
+      { name: "Power Circuit", kind: "main", rounds: 3, work: 45, rest: 15, roundRest: 45,
+        equipment: "Heavy dumbbells or kettlebells, battle ropes, mat",
+        exercises: [
+          { name: "Heavy farmer carry", cue: "Walk tall, short quick steps, grip hard." },
+          { name: "Dumbbell snatch", cue: "Floor to overhead in one move. Alternate arms." },
+          { name: "Battle ropes", cue: "Big waves, stay low in a half squat." },
+          { name: "Jump squats", cue: "Explode up, land soft, go again." },
+          { name: "V-ups", cue: "Hands to toes. Tuck-ups if needed." }
+        ]},
+      { name: "Cool-down", kind: "cooldown", rounds: 1, work: COOLDOWN_WORK, rest: 0, setup: 30,
+        equipment: "Mat",
+        exercises: [
+          { name: "Easy walk", cue: "Shake out the arms and grip." },
+          { name: "Lat stretch on rack", cue: "Hold the rack, sit hips back." },
+          { name: "90/90 hip stretch", cue: "Switch sides halfway." },
+          { name: "Standing quad stretch", cue: "Switch legs halfway." },
+          { name: "Cross-body shoulder stretch", cue: "Switch arms halfway." },
+          { name: "Box breathing", cue: "Lie down. In 4, hold 4, out 4, hold 4." }
+        ]}
+    ]
+  }
+};
+
+/* =========================================================
+   BUILD INTERVAL SEQUENCE
+   ========================================================= */
+function buildSteps(w){
+  const steps = [{ type:"ready", name:"Get ready", cue:`First up: ${w.blocks[0].exercises[0].name}`, dur:10, blockIdx:0 }];
+  w.blocks.forEach((b, bi) => {
+    if (bi > 0) steps.push({ type:"setup", name:`Set up: ${b.name}`, cue:`Grab: ${b.equipment}.`, dur:b.setup ?? 60, blockIdx:bi });
+    const wtype = b.kind === "warmup" ? "warmup" : b.kind === "cooldown" ? "cooldown" : "work";
+    for (let r = 1; r <= b.rounds; r++){
+      b.exercises.forEach((e, ei) => {
+        steps.push({ type:wtype, name:e.name, cue:e.cue || "", dur:e.work ?? b.work, blockIdx:bi, exIdx:ei, round:r, rounds:b.rounds });
+        const rest = e.rest ?? b.rest;
+        if (ei < b.exercises.length - 1 && rest > 0)
+          steps.push({ type:"rest", name:"Rest", dur:rest, blockIdx:bi, exIdx:ei, round:r, rounds:b.rounds });
+      });
+      if (r < b.rounds && b.roundRest > 0)
+        steps.push({ type:"rest", name:"Round rest", dur:b.roundRest, blockIdx:bi, round:r, rounds:b.rounds, roundBreak:true });
+    }
+  });
+  return steps;
+}
+
+/* =========================================================
+   STATE + HELPERS
+   ========================================================= */
+const $ = id => document.getElementById(id);
+const RING_C = 2 * Math.PI * 90;
+$("ring").style.strokeDasharray = RING_C;
+
+const S = { day:null, w:null, steps:[], starts:[], total:0, idx:0, remaining:0, running:false, endAt:0, lastSec:null, done:false, sound:true, voice:false };
+
+const fmt = s => { s = Math.max(0, Math.round(s)); return `${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`; };
+const now = () => performance.now();
+
+function loadPrefs(){
+  try { const p = JSON.parse(localStorage.getItem("mwf-prefs") || "{}"); if (typeof p.sound === "boolean") S.sound = p.sound; if (typeof p.voice === "boolean") S.voice = p.voice; } catch(e){}
+}
+function savePrefs(){ try { localStorage.setItem("mwf-prefs", JSON.stringify({sound:S.sound, voice:S.voice})); } catch(e){} }
+
+/* Audio */
+let actx = null;
+function ensureAudio(){ if (!actx){ try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){} } if (actx && actx.state === "suspended") actx.resume(); }
+function beep(freq=880, dur=.15, vol=.25){
+  if (!S.sound || !actx) return;
+  const o = actx.createOscillator(), g = actx.createGain(), t = actx.currentTime;
+  o.type = "square"; o.frequency.value = freq;
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+  o.connect(g).connect(actx.destination); o.start(t); o.stop(t + dur + .02);
+}
+function speak(text){
+  if (!S.voice || !("speechSynthesis" in window)) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text); u.rate = 1.05; speechSynthesis.speak(u);
+}
+
+/* Keep the screen awake while running */
+let wakeLock = null;
+async function lockScreen(){ try { if ("wakeLock" in navigator && !wakeLock) { wakeLock = await navigator.wakeLock.request("screen"); wakeLock.addEventListener("release", () => wakeLock = null); } } catch(e){} }
+function unlockScreen(){ try { wakeLock && wakeLock.release(); } catch(e){} wakeLock = null; }
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && S.running) lockScreen(); });
+
+/* =========================================================
+   ENGINE
+   ========================================================= */
+function loadDay(day){
+  pause();
+  S.day = day; S.w = WORKOUTS[day];
+  S.steps = buildSteps(S.w);
+  S.starts = []; let acc = 0;
+  S.steps.forEach(s => { S.starts.push(acc); acc += s.dur; });
+  S.total = acc;
+  S.idx = 0; S.remaining = S.steps[0].dur * 1000; S.done = false; S.lastSec = null;
+  document.querySelectorAll(".day").forEach(b => b.setAttribute("aria-selected", b.dataset.day === day));
+  renderSession(); render(); highlight();
+}
+
+function nextWorkIndex(from){
+  for (let j = from + 1; j < S.steps.length; j++) if (S.steps[j].type !== "rest") return j;
+  return -1;
+}
+
+function stepStarted(){
+  S.lastSec = null;
+  const s = S.steps[S.idx];
+  if (s.type === "rest" || s.type === "setup") beep(520, .35);
+  else { beep(1046, .25); setTimeout(() => beep(1318, .3), 180); }
+  if (s.type === "rest"){ const n = S.steps[nextWorkIndex(S.idx)]; speak(`Rest. Next, ${n ? n.name : "finish"}.`); }
+  else if (s.type === "setup") speak(`${s.name}. ${s.dur} seconds.`);
+  else speak(`${s.name}. ${s.dur} seconds.`);
+  highlight();
+}
+
+function play(){
+  ensureAudio();
+  if (S.done) { restart(); }
+  const fresh = S.remaining === S.steps[S.idx].dur * 1000;
+  S.endAt = now() + S.remaining; S.running = true;
+  if (fresh) stepStarted();
+  lockScreen(); render();
+}
+function pause(){
+  if (!S.running) return;
+  S.remaining = Math.max(0, S.endAt - now()); S.running = false;
+  unlockScreen(); render();
+}
+function togglePlay(){ S.running ? pause() : play(); }
+
+function goTo(i){
+  S.idx = Math.max(0, Math.min(S.steps.length - 1, i));
+  S.done = false;
+  S.remaining = S.steps[S.idx].dur * 1000;
+  if (S.running){ S.endAt = now() + S.remaining; stepStarted(); } else { S.lastSec = null; highlight(); }
+  render();
+}
+function restart(){ S.running = false; unlockScreen(); S.done = false; S.idx = 0; S.remaining = S.steps[0].dur * 1000; highlight(); render(); }
+
+function finish(){
+  S.running = false; S.done = true; S.remaining = 0; unlockScreen();
+  beep(784,.2); setTimeout(()=>beep(988,.2),220); setTimeout(()=>beep(1318,.45),440);
+  speak("Workout complete. Nice work.");
+  highlight(); render();
+}
+
+function tick(){
+  if (!S.running) return;
+  const t = now();
+  let rem = S.endAt - t;
+  while (rem <= 0){
+    if (S.idx >= S.steps.length - 1){ finish(); return; }
+    S.idx++;
+    S.endAt += S.steps[S.idx].dur * 1000;
+    rem = S.endAt - t;
+    stepStarted();
+  }
+  S.remaining = rem;
+  const sec = Math.ceil(rem / 1000);
+  if (sec !== S.lastSec){ if (sec >= 1 && sec <= 3 && S.lastSec !== null) beep(660, .12); S.lastSec = sec; }
+  render();
+}
+setInterval(tick, 100);
+
+/* =========================================================
+   RENDER
+   ========================================================= */
+const PHASE_LABEL = { ready:"Get ready", setup:"Set up", warmup:"Warm-up", work:"Work", rest:"Rest", cooldown:"Cool-down", done:"Finished" };
+
+function render(){
+  const stage = $("stage");
+  if (S.done){
+    stage.dataset.phase = "done";
+    $("phaseLabel").textContent = PHASE_LABEL.done;
+    $("blockName").textContent = `${S.w.day}: ${S.w.title}`;
+    $("roundInfo").textContent = "";
+    $("exName").textContent = "Workout complete";
+    $("exCue").textContent = "Write down the weights you used so you can go a little heavier next week.";
+    $("time").textContent = "0:00";
+    $("ring").style.strokeDashoffset = RING_C;
+    $("nextName").textContent = "Recover, eat, hydrate";
+    $("bar").style.width = "100%";
+    $("elapsed").textContent = `${fmt(S.total)} done`; $("left").textContent = "0:00 left";
+    $("btnPlay").textContent = "Go again";
+    return;
+  }
+  const s = S.steps[S.idx], b = S.w.blocks[s.blockIdx];
+  stage.dataset.phase = s.type;
+  $("phaseLabel").textContent = s.roundBreak ? "Round rest" : PHASE_LABEL[s.type];
+  $("blockName").textContent = b.name;
+  let info = "";
+  if (s.rounds > 1 && s.round) info = `Round ${s.round} of ${s.rounds}`;
+  if (s.exIdx !== undefined && b.exercises.length > 1 && s.type !== "rest") info += `${info ? ", " : ""}move ${s.exIdx + 1} of ${b.exercises.length}`;
+  $("roundInfo").textContent = info;
+
+  const nIdx = nextWorkIndex(S.idx), n = nIdx >= 0 ? S.steps[nIdx] : null;
+  if (s.type === "rest"){
+    $("exName").textContent = s.roundBreak ? "Round rest" : "Rest";
+    $("exCue").textContent = n ? `Coming up: ${n.name}. ${n.cue || ""}` : "Almost done.";
+  } else {
+    $("exName").textContent = s.name;
+    $("exCue").textContent = s.cue || "";
+  }
+
+  const secLeft = Math.ceil(S.remaining / 1000);
+  $("time").textContent = fmt(secLeft);
+  const frac = 1 - S.remaining / (s.dur * 1000);
+  $("ring").style.strokeDashoffset = RING_C * frac;
+
+  // Up next: the very next interval, plus the exercise after a rest
+  const immediate = S.steps[S.idx + 1];
+  if (!immediate) $("nextName").textContent = "Finish";
+  else if (immediate.type === "rest" && n) $("nextName").textContent = `${immediate.dur}s rest, then ${n.name}`;
+  else $("nextName").textContent = immediate.type === "setup" ? `${immediate.name} (${immediate.dur}s)` : `${immediate.name} (${immediate.dur}s)`;
+
+  const elapsed = S.starts[S.idx] + (s.dur - S.remaining / 1000);
+  $("bar").style.width = `${(elapsed / S.total) * 100}%`;
+  $("elapsed").textContent = `${fmt(elapsed)} done`;
+  $("left").textContent = `${fmt(S.total - elapsed)} left`;
+
+  $("btnPlay").textContent = S.running ? "Pause" : (S.idx === 0 && frac === 0 ? "Start" : "Resume");
+}
+
+function blockMeta(b){
+  if (b.format) return b.format;
+  let m = `${b.rounds} ${b.rounds > 1 ? "rounds" : "round"}, ${b.work}s work`;
+  if (b.rest) m += ` / ${b.rest}s rest`;
+  if (b.rounds > 1 && b.roundRest) m += `, ${b.roundRest}s between rounds`;
+  return m;
+}
+
+function renderSession(){
+  const w = S.w;
+  const el = $("session");
+  el.innerHTML = `
+    <h2>${w.title}</h2>
+    <p class="focus">${w.day}, about ${Math.round(S.total/60)} minutes. ${w.focus}</p>
+    ${w.blocks.map((b, bi) => `
+      <div class="block" data-b="${bi}">
+        <button class="block-head" data-jump="${bi}" aria-label="Jump to ${b.name}">
+          <b>${b.name}</b><span>${blockMeta(b)}</span>
+        </button>
+        <ul>${b.exercises.map((e, ei) => `<li data-b="${bi}" data-e="${ei}">${e.name}</li>`).join("")}</ul>
+      </div>`).join("")}
+    <p class="hint">Tap a block name to jump to it. Keyboard: Space to start or pause, arrow keys to skip.</p>`;
+  el.querySelectorAll("[data-jump]").forEach(btn => btn.addEventListener("click", () => {
+    const bi = +btn.dataset.jump;
+    goTo(S.steps.findIndex(s => s.blockIdx === bi && (bi === 0 || s.type === "setup")));
+  }));
+}
+
+function highlight(){
+  document.querySelectorAll(".block li.current").forEach(li => li.classList.remove("current"));
+  document.querySelectorAll(".block.active").forEach(b => b.classList.remove("active"));
+  if (S.done) return;
+  const s = S.steps[S.idx];
+  const blk = document.querySelector(`.block[data-b="${s.blockIdx}"]`);
+  blk && blk.classList.add("active");
+  let ei = s.exIdx;
+  if (s.type === "rest"){ const n = S.steps[nextWorkIndex(S.idx)]; if (n && n.blockIdx === s.blockIdx) ei = n.exIdx; }
+  if (s.type === "setup" || s.type === "ready") ei = 0;
+  const li = document.querySelector(`.block li[data-b="${s.blockIdx}"][data-e="${ei}"]`);
+  li && li.classList.add("current");
+}
+
+function renderPlan(){
+  const minutes = k => Math.round(buildSteps(WORKOUTS[k]).reduce((a, s) => a + s.dur, 0) / 60);
+  $("planView").innerHTML = `
+    <div class="plan-intro">
+      <h2>The program</h2>
+      <p>Three full-body sessions a week, built like an F45 class: timed stations, heavy lifting mixed with conditioning, and no counting reps in your head. Each session runs about 45–50 minutes including warm-up, set-up breaks, and cool-down.</p>
+    </div>
+    <div class="notes">
+      <div><h3>Choosing weights</h3><p>In heavy blocks, pick a load you could lift about 8–10 times. You should finish each interval with 1–2 good reps left in the tank. In circuits, go moderate so you can keep moving the whole interval.</p></div>
+      <div><h3>Progressing</h3><p>When you finish every round of a heavy block with clean form, add a little weight next week (about 2.5–5 kg on barbell lifts, one dumbbell size up).</p></div>
+      <div><h3>Every 4–6 weeks</h3><p>Take a lighter week at roughly 60–70% of your usual weights to recover, then build back up.</p></div>
+      <div><h3>No equipment for a move?</h3><p>Swap in a close match: goblet squat for back squat, dumbbell row for barbell row, jumping jacks for the bike, band pulldown for pull-ups.</p></div>
+    </div>
+    ${Object.entries(WORKOUTS).map(([k, w]) => `
+      <article class="day-plan">
+        <header>
+          <h3>${w.day}: ${w.title}</h3>
+          <p>About ${minutes(k)} minutes. ${w.focus}</p>
+          <button class="btn" data-open="${k}">Open in timer</button>
+        </header>
+        <div class="plan-blocks">
+          ${w.blocks.map(b => `
+            <section class="plan-block">
+              <h4>${b.name}</h4>
+              <p class="meta">${blockMeta(b)}<br>Equipment: ${b.equipment}</p>
+              <ol>${b.exercises.map(e => `<li>${e.name}${e.cue ? `<small>${e.cue}</small>` : ""}</li>`).join("")}</ol>
+            </section>`).join("")}
+        </div>
+      </article>`).join("")}`;
+  $("planView").querySelectorAll("[data-open]").forEach(btn => btn.addEventListener("click", () => { loadDay(btn.dataset.open); setView("timer"); }));
+}
+
+/* =========================================================
+   UI WIRING
+   ========================================================= */
+function setView(v){
+  $("timerView").hidden = v !== "timer";
+  $("planView").hidden = v !== "plan";
+  $("viewTimer").setAttribute("aria-pressed", v === "timer");
+  $("viewPlan").setAttribute("aria-pressed", v === "plan");
+  window.scrollTo({ top: 0 });
+}
+
+function defaultDay(){
+  const d = new Date().getDay(); // 0 Sun .. 6 Sat
+  return ({0:"mon",1:"mon",2:"wed",3:"wed",4:"fri",5:"fri",6:"mon"})[d];
+}
+
+(function init(){
+  loadPrefs();
+  const todayKey = ({1:"mon",3:"wed",5:"fri"})[new Date().getDay()];
+  $("dayTabs").innerHTML = Object.entries(WORKOUTS).map(([k, w]) =>
+    `<button class="day" role="tab" data-day="${k}" aria-selected="false">${w.short}${k === todayKey ? "<small>today</small>" : ""}</button>`).join("");
+  document.querySelectorAll(".day").forEach(b => b.addEventListener("click", () => loadDay(b.dataset.day)));
+
+  $("viewTimer").addEventListener("click", () => setView("timer"));
+  $("viewPlan").addEventListener("click", () => setView("plan"));
+  $("btnPlay").addEventListener("click", togglePlay);
+  $("btnSkip").addEventListener("click", () => { ensureAudio(); goTo(S.idx + 1); });
+  $("btnBack").addEventListener("click", () => { ensureAudio(); goTo(S.idx - 1); });
+  $("btnReset").addEventListener("click", restart);
+
+  const syncToggles = () => {
+    $("btnSound").setAttribute("aria-pressed", S.sound);
+    $("btnVoice").setAttribute("aria-pressed", S.voice);
+  };
+  $("btnSound").addEventListener("click", () => { S.sound = !S.sound; ensureAudio(); syncToggles(); savePrefs(); });
+  $("btnVoice").addEventListener("click", () => { S.voice = !S.voice; syncToggles(); savePrefs(); if (S.voice) speak("Voice cues on."); });
+  syncToggles();
+
+  $("btnFull").addEventListener("click", () => {
+    const st = $("stage");
+    if (document.fullscreenElement) document.exitFullscreen();
+    else if (st.requestFullscreen) st.requestFullscreen().catch(()=>{});
+  });
+
+  document.addEventListener("keydown", e => {
+    if ($("timerView").hidden) return;
+    if (e.code === "Space" && e.target.tagName !== "BUTTON"){ e.preventDefault(); togglePlay(); }
+    else if (e.code === "ArrowRight"){ ensureAudio(); goTo(S.idx + 1); }
+    else if (e.code === "ArrowLeft"){ ensureAudio(); goTo(S.idx - 1); }
+  });
+
+  renderPlan();
+  loadDay(defaultDay());
+})();
+</script>
+</body>
+</html>
